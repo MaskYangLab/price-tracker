@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>價格紀錄｜第 5 步相機掃描版</title>
+  <meta name="description" content="條碼掃描與商品價格紀錄原型">
+  <script src="https://unpkg.com/html5-qrcode" defer></script>
+  <style>
+    :root { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #222; background: #f5f6f8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px; }
+    main { width: min(820px, 100%); margin: 0 auto; }
+    .card { background: white; border: 1px solid #dfe3e8; border-radius: 14px; padding: 24px; margin-bottom: 16px; box-shadow: 0 4px 14px rgb(0 0 0 / 6%); }
+    h1, h2, h3 { margin-top: 0; }
+    h3 { margin-bottom: 6px; }
+    .muted { color: #667085; }
+    label { display: block; font-weight: 600; margin: 16px 0 6px; }
+    input, button { width: 100%; min-height: 44px; border-radius: 8px; font: inherit; }
+    input { padding: 10px 12px; border: 1px solid #b8c0cc; }
+    button { border: 0; padding: 10px 14px; margin-top: 16px; cursor: pointer; background: #1264a3; color: white; font-weight: 700; }
+    button.secondary { background: #e8edf2; color: #243447; }
+    button.danger { background: #b42318; }
+    button.small { width: auto; min-height: 40px; margin: 0; padding: 8px 12px; font-size: .9rem; }
+    button:active { transform: translateY(1px); }
+    .hidden { display: none; }
+    .result { background: #eef7ff; border: 1px solid #b7dbf7; border-radius: 10px; padding: 14px; margin-top: 16px; }
+    .scanner-box { margin-top: 16px; overflow: hidden; border-radius: 10px; background: #111; }
+    #reader { width: 100%; min-height: 220px; }
+    .product { border-top: 1px solid #e5e7eb; padding: 18px 0; }
+    .product:first-child { border-top: 0; }
+    .product-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    .product-actions, .record-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .record { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #eef0f2; padding: 12px 0; }
+    .price { font-size: 1.2rem; font-weight: 800; }
+    .actions { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+    @media (max-width: 600px) { body { padding: 12px; } .card { padding: 16px; } .product-header, .record { display: block; } .product-actions, .record-actions { justify-content: flex-start; margin-top: 10px; } .actions { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="card">
+      <h1>我的價格紀錄</h1>
+      <p class="muted">第 5 步：加入相機掃描條碼。手動輸入仍然可以使用。</p>
+      <div class="actions">
+        <button id="startScannerButton">開啟相機掃描</button>
+        <button id="stopScannerButton" class="secondary">關閉相機</button>
+      </div>
+      <div id="scannerStatus" class="result hidden"></div>
+      <div id="scannerBox" class="scanner-box hidden"><div id="reader"></div></div>
+    </section>
+
+    <section class="card">
+      <label for="barcode">商品條碼</label>
+      <input id="barcode" inputmode="numeric" value="8714789257181" placeholder="例如 8714789257181">
+      <button id="lookupButton">查詢商品</button>
+      <div id="lookupResult" class="result hidden"></div>
+    </section>
+
+    <section id="productFormCard" class="card hidden">
+      <h2 id="productFormTitle">新增商品</h2>
+      <label for="productName">商品名稱</label>
+      <input id="productName" placeholder="請輸入商品名稱">
+      <label for="brand">品牌（選填）</label>
+      <input id="brand" placeholder="例如：品牌名稱">
+      <div class="actions">
+        <button id="saveProductButton">新增商品</button>
+        <button id="cancelProductButton" class="secondary">取消</button>
+      </div>
+    </section>
+
+    <section id="priceFormCard" class="card hidden">
+      <h2>輸入本次價格</h2>
+      <p id="selectedProduct" class="muted"></p>
+      <label for="price">購買價格</label>
+      <input id="price" type="number" min="0" step="0.01" placeholder="例如 199">
+      <label for="store">購買店家（選填）</label>
+      <input id="store" placeholder="例如：家樂福">
+      <label for="purchaseDate">購買日期</label>
+      <input id="purchaseDate" type="date">
+      <div class="actions">
+        <button id="savePriceButton">儲存價格</button>
+        <button id="cancelPriceButton" class="secondary">取消</button>
+      </div>
+    </section>
+
+    <section id="editPriceCard" class="card hidden">
+      <h2>修改價格紀錄</h2>
+      <label for="editPrice">價格</label>
+      <input id="editPrice" type="number" min="0" step="0.01">
+      <label for="editStore">店家</label>
+      <input id="editStore">
+      <label for="editDate">日期</label>
+      <input id="editDate" type="date">
+      <div class="actions">
+        <button id="updatePriceButton">更新紀錄</button>
+        <button id="cancelEditPriceButton" class="secondary">取消</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>已記錄商品</h2>
+      <div id="productList"><p class="muted">目前尚未有商品。</p></div>
+    </section>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "price-tracker-products";
+    const today = new Date().toISOString().slice(0, 10);
+    let products = loadProducts();
+    let pendingProduct = null;
+    let activeProduct = null;
+    let editingProduct = null;
+    let editingPrice = null;
+    let scanner = null;
+    let scannerRunning = false;
+    const $ = (id) => document.getElementById(id);
+    $("purchaseDate").value = today;
+
+    function makeId() {
+      if (window.crypto && typeof window.crypto.randomUUID === "function") return window.crypto.randomUUID();
+      return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    function loadProducts() {
+      const savedData = localStorage.getItem(STORAGE_KEY);
+      if (!savedData) return [];
+      try {
+        const loadedProducts = JSON.parse(savedData);
+        return loadedProducts.map((product) => ({
+          ...product,
+          records: (product.records || []).map((record) => ({
+            ...record,
+            id: record.id || makeId(),
+            price: Number(record.price) || 0,
+            store: record.store || "",
+            date: record.date || today
+          }))
+        }));
+      } catch { return []; }
+    }
+
+    function saveProducts() { localStorage.setItem(STORAGE_KEY, JSON.stringify(products)); }
+    saveProducts();
+    function findProduct(barcode) { return products.find((product) => product.barcode === barcode); }
+    function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char])); }
+
+    function renderProducts() {
+      const list = $("productList");
+      if (!products.length) { list.innerHTML = '<p class="muted">目前尚未有商品。</p>'; return; }
+      list.innerHTML = products.map((product) => {
+        const records = [...(product.records || [])].sort((a, b) => b.date.localeCompare(a.date));
+        const history = records.length ? records.map((record) => `<div class="record"><div><div class="price">${Number(record.price).toFixed(2)} 元</div><div class="muted">${escapeHtml(record.date)}${record.store ? ` ・ ${escapeHtml(record.store)}` : ""}</div></div><div class="record-actions"><button class="small secondary" data-action="edit-price" data-barcode="${escapeHtml(product.barcode)}" data-record-id="${escapeHtml(record.id)}">修改</button><button class="small danger" data-action="delete-price" data-barcode="${escapeHtml(product.barcode)}" data-record-id="${escapeHtml(record.id)}">刪除</button></div></div>`).join("") : '<p class="muted">尚無價格紀錄。</p>';
+        return `<article class="product"><div class="product-header"><div><h3>${escapeHtml(product.name)}</h3><p class="muted">條碼：${escapeHtml(product.barcode)}${product.brand ? ` ・ ${escapeHtml(product.brand)}` : ""}</p></div><div class="product-actions"><button class="small secondary" data-action="edit-product" data-barcode="${escapeHtml(product.barcode)}">修改商品</button><button class="small danger" data-action="delete-product" data-barcode="${escapeHtml(product.barcode)}">刪除商品</button></div></div>${history}</article>`;
+      }).join("");
+    }
+
+    function showPriceForm(product) {
+      activeProduct = product;
+      $("selectedProduct").textContent = `${product.name}（${product.barcode}）`;
+      $("priceFormCard").classList.remove("hidden");
+      $("price").focus();
+    }
+
+    async function stopScanner() {
+      if (!scanner || !scannerRunning) return;
+      try { await scanner.stop(); await scanner.clear(); } catch { /* scanner already stopped */ }
+      scannerRunning = false;
+      $("scannerBox").classList.add("hidden");
+      $("scannerStatus").classList.remove("hidden");
+      $("scannerStatus").textContent = "相機已關閉。";
+    }
+
+    async function startScanner() {
+      if (scannerRunning) return;
+      if (typeof Html5Qrcode === "undefined") {
+        $("scannerStatus").classList.remove("hidden");
+        $("scannerStatus").textContent = "掃描套件尚未載入，請確認網路連線後重新整理頁面。";
+        return;
+      }
+      scanner = new Html5Qrcode("reader");
+      $("scannerBox").classList.remove("hidden");
+      $("scannerStatus").classList.remove("hidden");
+      $("scannerStatus").textContent = "請允許相機權限，並將條碼放入掃描框。";
+      try {
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 280, height: 120 }, aspectRatio: 1.777 },
+          async (decodedText) => {
+            $("barcode").value = decodedText;
+            $("scannerStatus").textContent = `已讀取條碼：${decodedText}`;
+            await stopScanner();
+            $("lookupButton").click();
+          },
+          () => {}
+        );
+        scannerRunning = true;
+      } catch (error) {
+        $("scannerStatus").textContent = `無法啟動相機：${error.message || "請確認相機權限。"}`;
+        $("scannerBox").classList.add("hidden");
+        scanner = null;
+      }
+    }
+
+    $("startScannerButton").addEventListener("click", startScanner);
+    $("stopScannerButton").addEventListener("click", stopScanner);
+
+    $("lookupButton").addEventListener("click", () => {
+      const barcode = $("barcode").value.trim();
+      if (!/^\d{8,14}$/.test(barcode)) { alert("請輸入 8 到 14 位數字的條碼。"); return; }
+      const existing = findProduct(barcode);
+      if (existing) {
+        pendingProduct = null; editingProduct = null;
+        $("lookupResult").classList.remove("hidden");
+        $("lookupResult").innerHTML = `<strong>已找到商品</strong><br>${escapeHtml(existing.name)}<br><span class="muted">可直接輸入本次價格。</span>`;
+        showPriceForm(existing);
+        return;
+      }
+      $("lookupResult").classList.remove("hidden");
+      $("lookupResult").innerHTML = '<strong>找不到既有商品</strong><br>請輸入名稱後新增。';
+      $("priceFormCard").classList.add("hidden");
+      openNewProductForm(barcode);
+    });
+
+    function openNewProductForm(barcode) {
+      activeProduct = null; editingProduct = null; pendingProduct = { barcode };
+      $("productFormTitle").textContent = "新增商品"; $("saveProductButton").textContent = "新增商品";
+      $("productName").value = ""; $("brand").value = ""; $("productFormCard").classList.remove("hidden"); $("productName").focus();
+    }
+
+    function openEditProductForm(product) {
+      activeProduct = null; pendingProduct = null; editingProduct = product;
+      $("productFormTitle").textContent = "修改商品資料"; $("saveProductButton").textContent = "儲存修改";
+      $("productName").value = product.name || ""; $("brand").value = product.brand || ""; $("productFormCard").classList.remove("hidden"); $("productName").focus();
+    }
+
+    $("saveProductButton").addEventListener("click", () => {
+      const name = $("productName").value.trim();
+      if (!name) { alert("請輸入商品名稱。"); return; }
+      if (editingProduct) {
+        const productToEdit = editingProduct;
+        productToEdit.name = name; productToEdit.brand = $("brand").value.trim(); saveProducts(); editingProduct = null; $("productFormCard").classList.add("hidden");
+        if (!productToEdit.records || productToEdit.records.length === 0) showPriceForm(productToEdit); else renderProducts();
+        return;
+      }
+      if (!pendingProduct) return;
+      activeProduct = { ...pendingProduct, name, brand: $("brand").value.trim(), records: [] }; products.push(activeProduct); saveProducts(); pendingProduct = null; $("productFormCard").classList.add("hidden"); showPriceForm(activeProduct); renderProducts();
+    });
+
+    $("cancelProductButton").addEventListener("click", () => { pendingProduct = null; editingProduct = null; $("productFormCard").classList.add("hidden"); });
+    $("cancelPriceButton").addEventListener("click", () => { activeProduct = null; $("priceFormCard").classList.add("hidden"); });
+    $("savePriceButton").addEventListener("click", () => { const price = Number($("price").value); if (!activeProduct || !Number.isFinite(price) || price < 0) { alert("請輸入有效價格。"); return; } activeProduct.records.push({ id: makeId(), price, store: $("store").value.trim(), date: $("purchaseDate").value || today }); saveProducts(); $("price").value = ""; $("store").value = ""; $("priceFormCard").classList.add("hidden"); $("lookupResult").classList.remove("hidden"); $("lookupResult").innerHTML = "<strong>已儲存！</strong><br>價格紀錄已保存。"; renderProducts(); });
+
+    document.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-action]"); if (!button) return;
+      const product = findProduct(button.dataset.barcode); if (!product) return;
+      const action = button.dataset.action;
+      if (action === "delete-product") { if (!confirm(`確定要刪除「${product.name}」及其全部價格紀錄嗎？`)) return; products = products.filter((item) => item.barcode !== product.barcode); saveProducts(); renderProducts(); return; }
+      if (action === "edit-product") { openEditProductForm(product); return; }
+      if (action === "delete-price") { if (!confirm("確定要刪除這筆價格紀錄嗎？")) return; product.records = (product.records || []).filter((record) => record.id !== button.dataset.recordId); saveProducts(); renderProducts(); return; }
+      if (action === "edit-price") { const record = (product.records || []).find((item) => item.id === button.dataset.recordId); if (!record) return; editingPrice = { product, record }; $("editPrice").value = record.price; $("editStore").value = record.store || ""; $("editDate").value = record.date; $("editPriceCard").classList.remove("hidden"); $("editPrice").focus(); }
+    });
+
+    $("updatePriceButton").addEventListener("click", () => { if (!editingPrice?.record) return; const price = Number($("editPrice").value); if (!Number.isFinite(price) || price < 0) { alert("請輸入有效價格。"); return; } editingPrice.record.price = price; editingPrice.record.store = $("editStore").value.trim(); editingPrice.record.date = $("editDate").value || today; saveProducts(); editingPrice = null; $("editPriceCard").classList.add("hidden"); renderProducts(); });
+    $("cancelEditPriceButton").addEventListener("click", () => { editingPrice = null; $("editPriceCard").classList.add("hidden"); });
+    renderProducts();
+  </script>
+</body>
+</html>
