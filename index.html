@@ -1,239 +1,27 @@
 <!doctype html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>我的價格紀錄｜Google Drive 同步測試</title>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <style>
-    :root { color-scheme: light; --blue:#1967d2; --ink:#202124; --muted:#5f6368; --line:#dadce0; --good:#137333; --bad:#b3261e; --bg:#f8fafd; }
-    * { box-sizing:border-box; }
-    body { margin:0; font-family:system-ui,-apple-system,"Noto Sans TC",Arial,sans-serif; color:var(--ink); background:var(--bg); }
-    main { max-width:860px; margin:32px auto; padding:0 18px 48px; }
-    .card { background:#fff; border:1px solid var(--line); border-radius:16px; padding:24px; box-shadow:0 1px 2px #00000010; margin-top:16px; }
-    h1 { font-size:28px; margin:0 0 8px; } h2 { font-size:19px; margin:0 0 12px; }
-    p,li { line-height:1.65; } .muted { color:var(--muted); }
-    .status { padding:12px 14px; border-radius:10px; background:#eef3fd; color:#174ea6; margin:14px 0; white-space:pre-wrap; }
-    .status.ok { background:#e6f4ea; color:var(--good); } .status.error { background:#fce8e6; color:var(--bad); }
-    .row { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; }
-    button { border:0; border-radius:8px; padding:11px 16px; font-size:15px; cursor:pointer; background:var(--blue); color:#fff; font-weight:600; }
-    button.secondary { background:#fff; color:var(--blue); border:1px solid #8ab4f8; } button:disabled { opacity:.55; cursor:not-allowed; }
-    code { background:#f1f3f4; padding:2px 5px; border-radius:4px; word-break:break-all; }
-    textarea { width:100%; min-height:210px; resize:vertical; border:1px solid var(--line); border-radius:10px; padding:12px; font:13px ui-monospace,SFMono-Regular,Consolas,monospace; line-height:1.5; }
-    .small { font-size:13px; }
-  </style>
-</head>
-<body>
-<main>
-  <h1>我的價格紀錄</h1>
-  <p class="muted">Step 13.7.6｜Google Drive App Data 同步測試版</p>
-
-  <section class="card">
-    <h2>同步設定</h2>
-    <p>此頁只使用 Google Drive 的隱藏應用程式資料夾（<code>appDataFolder</code>），會建立或更新一個 <code>price-tracker-database.json</code>。不會讀取或列出你的其他 Google Drive 檔案。</p>
-    <p class="small">Google OAuth Client ID：<code id="clientIdDisplay"></code></p>
-    <div id="status" class="status">正在載入 Google 授權元件…</div>
-    <div class="row">
-      <button id="authorizeButton" disabled>連線並授權 Google Drive</button>
-      <button id="uploadButton" disabled>上傳目前資料</button>
-      <button id="downloadButton" class="secondary" disabled>從 Drive 下載資料</button>
-    </div>
-    <p id="syncInfo" class="small muted">尚未同步。</p>
-  </section>
-
-  <section class="card">
-    <h2>目前資料（JSON）</h2>
-    <p class="muted">可先修改下方測試資料，再按「上傳目前資料」。下載後，內容會覆蓋此區並儲存到本機瀏覽器。</p>
-    <textarea id="dataEditor" spellcheck="false"></textarea>
-    <div class="row"><button id="saveLocalButton" class="secondary">只儲存到本機</button></div>
-  </section>
-
-  <section class="card small">
-    <h2>開始前檢查</h2>
-    <ol>
-      <li>在同一個 Google Cloud 專案中啟用 <strong>Google Drive API</strong>。</li>
-      <li>OAuth 同意畫面仍為「測試」狀態時，將你的 Google 帳號新增為測試使用者。</li>
-      <li>用本機伺服器開啟此檔，例如 <code>http://127.0.0.1:5500</code>；不要以 <code>file://</code> 直接開啟。</li>
-    </ol>
-  </section>
-</main>
-<script>
-  const GOOGLE_CLIENT_ID = '228612325011-u1uoard7b2its8h6o1sd9c7bb1jb7lac.apps.googleusercontent.com';
-  const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
-  const FILE_NAME = 'price-tracker-database.json';
-  const LOCAL_KEY = 'priceTrackerDatabase';
-
-  let tokenClient;
-  let accessToken = '';
-  let tokenExpiresAt = 0;
-  let pendingAction = null;
-
-  const $ = (id) => document.getElementById(id);
-  const status = $('status');
-  const authorizeButton = $('authorizeButton');
-  const uploadButton = $('uploadButton');
-  const downloadButton = $('downloadButton');
-  const editor = $('dataEditor');
-  $('clientIdDisplay').textContent = GOOGLE_CLIENT_ID;
-
-  function defaultData() {
-    return {
-      version: 1,
-      updatedAt: new Date().toISOString(),
-      products: [],
-      priceRecords: []
-    };
-  }
-
-  function readLocal() {
-    try {
-      const saved = localStorage.getItem(LOCAL_KEY);
-      return saved ? JSON.parse(saved) : defaultData();
-    } catch (_) { return defaultData(); }
-  }
-
-  function showData(data) { editor.value = JSON.stringify(data, null, 2); }
-  function setStatus(message, kind = '') { status.textContent = message; status.className = 'status' + (kind ? ' ' + kind : ''); }
-  function setConnected(connected) { uploadButton.disabled = !connected; downloadButton.disabled = !connected; }
-
-  function parseEditor() {
-    try { return JSON.parse(editor.value); }
-    catch (_) { throw new Error('JSON 格式無效。請修正內容後再儲存或上傳。'); }
-  }
-
-  function saveLocal() {
-    try {
-      const data = parseEditor();
-      data.updatedAt = new Date().toISOString();
-      showData(data);
-      localStorage.setItem(LOCAL_KEY, JSON.stringify(data));
-      setStatus('已只儲存到這台裝置的瀏覽器。', 'ok');
-    } catch (error) { setStatus(error.message, 'error'); }
-  }
-
-  function authHeaders(extra = {}) {
-    return { Authorization: `Bearer ${accessToken}`, ...extra };
-  }
-
-  async function findRemoteFile() {
-    const q = encodeURIComponent(`name='${FILE_NAME}' and 'appDataFolder' in parents and trashed=false`);
-    const url = `https://www.googleapis.com/drive/v3/files?q=${q}&spaces=appDataFolder&fields=files(id,name,modifiedTime,size)`;
-    const response = await fetch(url, { headers: authHeaders() });
-    if (!response.ok) throw new Error(await response.text());
-    const payload = await response.json();
-    return payload.files?.[0] || null;
-  }
-
-  async function multipartUpload(url, method, metadata, jsonText) {
-    const boundary = 'price_tracker_boundary_' + crypto.randomUUID();
-    const body = [
-      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`,
-      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${jsonText}\r\n`,
-      `--${boundary}--`
-    ].join('');
-    const response = await fetch(url, { method, headers: authHeaders({ 'Content-Type': `multipart/related; boundary=${boundary}` }), body });
-    if (!response.ok) throw new Error(await response.text());
-    return response.json();
-  }
-
-  async function uploadToDrive() {
-    try {
-      const data = parseEditor();
-      data.updatedAt = new Date().toISOString();
-      const jsonText = JSON.stringify(data, null, 2);
-      showData(data);
-      localStorage.setItem(LOCAL_KEY, JSON.stringify(data));
-      setStatus('正在尋找 Drive 中既有的同步檔…');
-      const existing = await findRemoteFile();
-      let result;
-      if (existing) {
-        result = await multipartUpload(`https://www.googleapis.com/upload/drive/v3/files/${existing.id}?uploadType=multipart&fields=id,name,modifiedTime,size`, 'PATCH', { name: FILE_NAME, mimeType: 'application/json' }, jsonText);
-      } else {
-        result = await multipartUpload('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,modifiedTime,size', 'POST', { name: FILE_NAME, mimeType: 'application/json', parents: ['appDataFolder'] }, jsonText);
-      }
-      const action = existing ? '已更新' : '已建立';
-      $('syncInfo').textContent = `${action} Drive 同步檔｜最後同步：${new Date().toLocaleString('zh-TW')}｜檔案 ID：${result.id}`;
-      setStatus(`${action} Google Drive 的 ${FILE_NAME}。`, 'ok');
-    } catch (error) {
-      setStatus('上傳失敗：' + friendlyError(error), 'error');
-    }
-  }
-
-  async function downloadFromDrive() {
-    try {
-      setStatus('正在尋找 Google Drive 同步檔…');
-      const existing = await findRemoteFile();
-      if (!existing) {
-        setStatus(`Drive 尚未有 ${FILE_NAME}。請先上傳一次資料。`, 'error');
-        return;
-      }
-      const response = await fetch(`https://www.googleapis.com/drive/v3/files/${existing.id}?alt=media`, { headers: authHeaders() });
-      if (!response.ok) throw new Error(await response.text());
-      const data = await response.json();
-      showData(data);
-      localStorage.setItem(LOCAL_KEY, JSON.stringify(data));
-      $('syncInfo').textContent = `已從 Drive 下載｜Drive 最後修改：${new Date(existing.modifiedTime).toLocaleString('zh-TW')}｜檔案 ID：${existing.id}`;
-      setStatus(`已下載並套用 ${FILE_NAME}，也已儲存到這台裝置。`, 'ok');
-    } catch (error) {
-      setStatus('下載失敗：' + friendlyError(error), 'error');
-    }
-  }
-
-  function friendlyError(error) {
-    const text = String(error.message || error);
-    if (text.includes('accessNotConfigured') || text.includes('Drive API has not been used')) return 'Google Drive API 尚未在 Cloud 專案啟用。';
-    if (text.includes('origin_mismatch')) return '目前網址尚未加入 OAuth 的「已授權 JavaScript 來源」。';
-    if (text.includes('403')) return '沒有足夠權限，請確認 OAuth 同意畫面的測試使用者與 Drive scope 設定。';
-    if (text.includes('401')) return '授權已過期，請重新連線並授權。';
-    return text;
-  }
-
-  function requestAuthorization(action) {
-    pendingAction = action;
-    if (!tokenClient) { setStatus('Google 授權元件尚未完成載入，請稍後再試。', 'error'); return; }
-    if (accessToken && Date.now() < tokenExpiresAt) {
-      setConnected(true);
-      runPendingAction();
-      return;
-    }
-    setStatus('請在 Google 視窗中選擇帳號並同意 Google Drive App Data 的存取權。');
-    tokenClient.requestAccessToken({ prompt: accessToken ? '' : 'consent' });
-  }
-
-  function runPendingAction() {
-    const action = pendingAction;
-    pendingAction = null;
-    if (action === 'upload') uploadToDrive();
-    if (action === 'download') downloadFromDrive();
-  }
-
-  function initializeGoogle() {
-    if (!window.google?.accounts?.oauth2) { setTimeout(initializeGoogle, 100); return; }
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: DRIVE_SCOPE,
-      callback: (response) => {
-        if (response.error) {
-          setStatus('Google 授權未完成：' + (response.error_description || response.error), 'error');
-          return;
-        }
-        accessToken = response.access_token;
-        tokenExpiresAt = Date.now() + ((response.expires_in || 3600) * 1000) - 30000;
-        setConnected(true);
-        setStatus('Google Drive 已授權。此授權只在目前瀏覽器工作階段有效。', 'ok');
-        runPendingAction();
-      }
-    });
-    authorizeButton.disabled = false;
-    setStatus('Google 授權元件已就緒。請點擊「連線並授權 Google Drive」。');
-  }
-
-  authorizeButton.addEventListener('click', () => requestAuthorization(null));
-  uploadButton.addEventListener('click', () => requestAuthorization('upload'));
-  downloadButton.addEventListener('click', () => requestAuthorization('download'));
-  $('saveLocalButton').addEventListener('click', saveLocal);
-  showData(readLocal());
-  initializeGoogle();
-</script>
-</body>
-</html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>我的價格紀錄｜Google Drive 同步</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+body{margin:0;background:#f8fafd;color:#202124;font-family:system-ui,-apple-system,"Noto Sans TC",Arial,sans-serif}main{max-width:860px;margin:28px auto;padding:0 16px 48px}.card{background:#fff;border:1px solid #dadce0;border-radius:16px;padding:22px;margin:14px 0}h1{font-size:27px;margin:0 0 6px}h2{font-size:19px;margin:0 0 12px}.muted{color:#5f6368;line-height:1.6}.status{padding:13px;border-radius:10px;background:#eef3fd;color:#174ea6;white-space:pre-wrap;line-height:1.55}.ok{background:#e6f4ea;color:#137333}.error{background:#fce8e6;color:#b3261e}.row{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}button{border:0;border-radius:8px;padding:11px 15px;background:#1967d2;color:white;font-size:15px;font-weight:600;cursor:pointer}button.secondary{background:#fff;color:#1967d2;border:1px solid #8ab4f8}button:disabled{opacity:.5;cursor:not-allowed}textarea{width:100%;min-height:190px;padding:12px;border:1px solid #dadce0;border-radius:10px;font:13px monospace;box-sizing:border-box}code{background:#f1f3f4;padding:2px 5px;border-radius:4px;word-break:break-all}.small{font-size:13px}
+</style>
+</head><body><main>
+<h1>我的價格紀錄</h1><p class="muted">Step 13.7.7｜GitHub Pages Google Drive 同步修正版</p>
+<section class="card"><h2>同步設定</h2><p class="muted">只使用 Google Drive 隱藏的 <code>appDataFolder</code>，建立或更新 <code>price-tracker-database.json</code>，不會讀取其他 Drive 檔案。</p><p class="small">目前網站來源：<code id="origin"></code></p><p class="small">Client ID：<code>228612325011-u1uoard7b2its8h6o1sd9c7bb1jb7lac.apps.googleusercontent.com</code></p><div id="status" class="status">正在載入 Google 授權元件…</div><div class="row"><button id="auth" disabled>連線並授權 Google Drive</button><button id="upload" disabled>上傳目前資料</button><button id="download" class="secondary" disabled>從 Drive 下載資料</button></div><p id="info" class="small muted">尚未同步。</p></section>
+<section class="card"><h2>目前資料（JSON）</h2><p class="muted">可修改資料後按「上傳目前資料」。下載資料會覆蓋此區，也會儲存至目前瀏覽器。</p><textarea id="editor" spellcheck="false"></textarea><div class="row"><button id="local" class="secondary">只儲存到本機</button></div></section>
+<section class="card small"><h2>本版修正</h2><ul><li>顯示實際網站來源，方便核對 OAuth 設定。</li><li>手機與筆電使用同一個 GitHub Pages 網址時，使用同一個 OAuth Client。</li><li>授權失敗時顯示明確的錯誤原因與修正方向。</li></ul></section>
+</main><script>
+const CLIENT_ID='228612325011-u1uoard7b2its8h6o1sd9c7bb1jb7lac.apps.googleusercontent.com',SCOPE='https://www.googleapis.com/auth/drive.appdata',FILE='price-tracker-database.json',KEY='priceTrackerDatabase';
+let client,token='',expiry=0,pending=null;const $=id=>document.getElementById(id),status=$('status'),editor=$('editor');$('origin').textContent=location.origin;
+function defaults(){return{version:1,updatedAt:new Date().toISOString(),products:[],priceRecords:[]}}function setStatus(t,c=''){status.textContent=t;status.className='status '+c}function setConnected(v){$('upload').disabled=!v;$('download').disabled=!v}function local(){try{return JSON.parse(localStorage.getItem(KEY))||defaults()}catch{return defaults()}}function show(x){editor.value=JSON.stringify(x,null,2)}function parsed(){try{return JSON.parse(editor.value)}catch{throw Error('JSON 格式無效，請先修正。')}}
+function headers(x={}){return{Authorization:`Bearer ${token}`,...x}}async function remote(){const q=encodeURIComponent(`name='${FILE}' and 'appDataFolder' in parents and trashed=false`),r=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=appDataFolder&fields=files(id,name,modifiedTime,size)`,{headers:headers()});if(!r.ok)throw Error(await r.text());return(await r.json()).files?.[0]||null}
+async function multipart(url,method,meta,data){const b='pt_'+crypto.randomUUID(),body=`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${data}\r\n--${b}--`;const r=await fetch(url,{method,headers:headers({'Content-Type':`multipart/related; boundary=${b}`}),body});if(!r.ok)throw Error(await r.text());return r.json()}
+function friendly(e){let s=String(e.message||e);if(s.includes('origin_mismatch'))return'目前網站來源未加入 OAuth「已授權的 JavaScript 來源」。請加入畫面顯示的目前網站來源。';if(s.includes('accessNotConfigured')||s.includes('Drive API has not been used'))return'請在相同 Cloud 專案啟用 Google Drive API。';if(s.includes('403'))return'Google 拒絕授權：確認目前登入帳號已加入測試使用者，且 Client ID 屬於相同專案。';if(s.includes('401'))return'授權已過期，請重新連線。';return s}
+async function upload(){try{const d=parsed();d.updatedAt=new Date().toISOString();show(d);localStorage.setItem(KEY,JSON.stringify(d));setStatus('正在同步到 Google Drive…');const old=await remote(),text=JSON.stringify(d,null,2),result=old?await multipart(`https://www.googleapis.com/upload/drive/v3/files/${old.id}?uploadType=multipart&fields=id,name,modifiedTime,size`,'PATCH',{name:FILE,mimeType:'application/json'},text):await multipart('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,modifiedTime,size','POST',{name:FILE,mimeType:'application/json',parents:['appDataFolder']},text);$('info').textContent=`已${old?'更新':'建立'}同步檔｜${new Date().toLocaleString('zh-TW')}｜ID：${result.id}`;setStatus('Google Drive 同步成功。','ok')}catch(e){setStatus('上傳失敗：'+friendly(e),'error')}}
+async function download(){try{setStatus('正在從 Google Drive 下載…');const old=await remote();if(!old){setStatus(`Drive 尚未有 ${FILE}，請先上傳一次。`,'error');return}const r=await fetch(`https://www.googleapis.com/drive/v3/files/${old.id}?alt=media`,{headers:headers()});if(!r.ok)throw Error(await r.text());const d=await r.json();show(d);localStorage.setItem(KEY,JSON.stringify(d));$('info').textContent=`已下載｜Drive 修改時間：${new Date(old.modifiedTime).toLocaleString('zh-TW')}`;setStatus('已從 Google Drive 下載並套用資料。','ok')}catch(e){setStatus('下載失敗：'+friendly(e),'error')}}
+function authorize(action=null){pending=action;if(!client){setStatus('Google 授權元件尚未載入。','error');return}if(token&&Date.now()<expiry){setConnected(true);run();return}setStatus('請在 Google 視窗選擇 maskyang@gmail.com 並同意 Drive App Data 權限。');client.requestAccessToken({prompt:token?'':'consent'})}function run(){const p=pending;pending=null;if(p==='upload')upload();if(p==='download')download()}
+function init(){if(!window.google?.accounts?.oauth2){setTimeout(init,100);return}client=google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPE,callback:r=>{if(r.error){setStatus(`Google 授權失敗：${r.error_description||r.error}`,'error');return}token=r.access_token;expiry=Date.now()+((r.expires_in||3600)*1000)-30000;setConnected(true);setStatus('Google Drive 已授權。','ok');run()}});$('auth').disabled=false;setStatus('Google 授權元件已就緒。請按「連線並授權 Google Drive」。')}
+$('auth').onclick=()=>authorize();$('upload').onclick=()=>authorize('upload');$('download').onclick=()=>authorize('download');$('local').onclick=()=>{try{const d=parsed();d.updatedAt=new Date().toISOString();show(d);localStorage.setItem(KEY,JSON.stringify(d));setStatus('已儲存到本機瀏覽器。','ok')}catch(e){setStatus(e.message,'error')}};show(local());init();
+</script></body></html>
