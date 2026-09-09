@@ -1130,11 +1130,7 @@
             '</strong><br><span class="muted">' +
             esc(p.brand || "無品牌") +
             "</span>" +
-            (p.aliasBarcodes.length
-              ? '<br><span class="muted">其他條碼：' +
-                esc(p.aliasBarcodes.join("、")) +
-                "</span>"
-              : "") +
+             +
             '<br><span class="muted">最高：' +
             (highest === "—" ? "—" : highest + " 元") +
             "｜最低：" +
