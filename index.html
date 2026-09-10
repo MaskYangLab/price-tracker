@@ -1122,15 +1122,20 @@
           const x = document.createElement("div");
           x.className = "card-text";
           const lr = liveRecords(p),
-            highest = lr.length ? Math.max(...lr.map((r) => r.price)) : "—",
-            lowest = lr.length ? Math.min(...lr.map((r) => r.price)) : "—";
+            prices = lr.map((r) => Number(r.price)).filter((p) => !Number.isNaN(p) && p > 0),
+            highest = prices.length ? Math.max(...prices) : "—",
+            lowest = prices.length ? Math.min(...prices) : "—";
           x.innerHTML =
             "<strong>" +
             esc(p.name) +
             '</strong><br><span class="muted">' +
             esc(p.brand || "無品牌") +
             "</span>" +
-             +
+            (p.aliasBarcodes.length
+              ? '<br><span class="muted">其他條碼：' +
+                esc(p.aliasBarcodes.join("、")) +
+                "</span>"
+              : "") +
             '<br><span class="muted">最高：' +
             (highest === "—" ? "—" : highest + " 元") +
             "｜最低：" +
