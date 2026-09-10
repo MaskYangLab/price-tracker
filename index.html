@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width,initial-scale=1,maximum-scale=1"
     />
-    <title>我的價格紀錄｜Step 13.9.7.26</title>
+    <title>我的價格紀錄｜v1.0.0</title>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
       :root {
@@ -633,8 +633,8 @@
     <section class="page active" id="page-scan">
       <h1>價格查詢</h1>
       <div class="version">
-        <strong>Step 13.9.7.26｜其他條碼與安全同步摘要</strong
-        ><br />可為商品加入其他條碼；掃描、查詢與列表搜尋都可找到同一商品。安全同步預覽會分別顯示僅在本機與僅在雲端的商品。
+        <strong>我的價格紀錄</strong
+        ><br />版本 v1.0.0｜條碼掃描・商品管理・價格追蹤・雲端同步
       </div>
       <button class="primary" id="startCamera">開啟相機掃描</button
       ><button class="secondary hidden" id="stopCamera">關閉相機</button>
@@ -1122,9 +1122,8 @@
           const x = document.createElement("div");
           x.className = "card-text";
           const lr = liveRecords(p),
-            prices = lr.map((r) => Number(r.price)).filter((p) => !Number.isNaN(p) && p > 0),
-            highest = prices.length ? Math.max(...prices) : "—",
-            lowest = prices.length ? Math.min(...prices) : "—";
+            highest = lr.length ? Math.max(...lr.map((r) => r.price)) : "—",
+            lowest = lr.length ? Math.min(...lr.map((r) => r.price)) : "—";
           x.innerHTML =
             "<strong>" +
             esc(p.name) +
