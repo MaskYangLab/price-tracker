@@ -904,6 +904,49 @@
   }
 }
 
+/* 返回列表按鈕獨立顯示 */
+.detail-back-action {
+  display: flex;
+  margin-top: 2px;
+}
+
+.detail-back-action button {
+  min-height: 44px;
+}
+
+/* iPhone 直立：同組兩顆按鈕各佔一半寬度 */
+@media (max-width: 420px) {
+  .action-group-buttons button {
+    flex: 1 1 calc(50% - 5px);
+    min-width: 0;
+  }
+}
+
+/* ===== 返回商品列表：較明顯的導覽按鈕 ===== */
+.detail-back-action {
+  margin-top: 4px;
+}
+
+.detail-back-button {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 1px solid #93c5fd;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(29, 78, 216, 0.08);
+}
+
+.detail-back-button:active {
+  background: #dbeafe;
+  transform: translateY(1px);
+}
+
+</style>
+
     </style>
   </head>
 
@@ -1606,7 +1649,7 @@
           "</div>" +
           "</section>" +
           '<div class="detail-back-action">' +
-          '<button class="secondary" id="back">返回列表</button>' +
+          '<button class="secondary detail-back-button" id="back">← 返回商品列表</button>' +
           "</div>" +
           "</div>" +
           (rs
