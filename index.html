@@ -1369,7 +1369,7 @@
       function candidateArray(v) {
         if (Array.isArray(v)) return v;
         if (!v || typeof v !== "object") return null;
-        for (const k of ["products", "items", "data", "list"])
+        for (const k of ["products", "items", "data", "list", "m"])
           if (Array.isArray(v[k])) return v[k];
         if (v.database && Array.isArray(v.database.products))
           return v.database.products;
